@@ -19,6 +19,7 @@ public class Client {
         this.cacheIP = cacheIP;
         this.cachePort = cachePort;
         this.protocol = protocol;
+        System.out.println("Client Side Starting on port: " + this.serverPort);
         connectToServer();
     }
 
