@@ -34,30 +34,39 @@ public class Server {
 
     private void handlePutCommand(String command, DataInputStream in, DataOutputStream out) throws IOException {
         String filename = command.split(" ")[1];
-        File file = new File(filename);
-        List<byte[]> fileChunks = new ArrayList<>();
-        while (in.available() > 0) {
-            byte[] buffer = new byte[1000];
-            int bytesRead = in.read(buffer);
-            fileChunks.add(Arrays.copyOf(buffer, bytesRead));
+        long fileSize = in.readLong();
+        FileOutputStream fos = new FileOutputStream(filename);
+        byte[] buffer = new byte[4096];
+        long totalRead = 0;
+        int bytesRead;
+        while (totalRead < fileSize && (bytesRead = in.read(buffer, 0, (int)Math.min(buffer.length, fileSize - totalRead))) != -1) {
+            fos.write(buffer, 0, bytesRead);
+            totalRead += bytesRead;
         }
-        MyFile.writeFileFromChunks(fileChunks, file);
+        fos.close();
         out.writeUTF("File successfully uploaded.");
     }
+
 
     private void handleGetCommand(String command, DataOutputStream out) throws IOException {
         String filename = command.split(" ")[1];
         File file = new File(filename);
         if (file.exists()) {
-            List<byte[]> fileChunks = MyFile.readFileInChunks(file);
-            for (byte[] chunk : fileChunks) {
-                out.write(chunk, 0, chunk.length);
+            out.writeUTF("Sending file.");
+            long fileSize = file.length();
+            out.writeLong(fileSize);
+            FileInputStream fis = new FileInputStream(file);
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
             }
-            out.writeUTF("File successfully downloaded.");
+            fis.close();
         } else {
             out.writeUTF("File not found.");
         }
     }
+
 
     public static void main(String[] args) {
         if (args.length < 1) {
