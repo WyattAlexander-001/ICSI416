@@ -9,6 +9,7 @@ public class Server {
 
     public Server(int port) throws IOException {
         serverSocket = new ServerSocket(port);
+        System.out.println("Server is running on port " + port);
     }
 
     public void start() {
@@ -59,6 +60,10 @@ public class Server {
     }
 
     public static void main(String[] args) {
+        if (args.length < 1) {
+            System.err.println("Usage: java Server <port>");
+            return;
+        }
         int port = Integer.parseInt(args[0]);
         try {
             Server server = new Server(port);
@@ -67,4 +72,5 @@ public class Server {
             System.err.println("Could not start server: " + e.getMessage());
         }
     }
+
 }

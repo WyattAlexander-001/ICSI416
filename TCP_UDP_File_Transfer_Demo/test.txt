@@ -1,0 +1,12 @@
+Here is some test file I keep in SRC
+This project I basically need to run the following in 3 terminals:
+cd to src in all three terminals:
+T1:
+javac *.java
+java Server 10000 tcp
+
+T2:
+java Cache 20000 localhost 10000 tcp
+
+T3:
+java Client localhost 10000 localhost 20000 tcp
