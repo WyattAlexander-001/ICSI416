@@ -1,96 +1,174 @@
 import java.net.*;
 import java.io.*;
-import java.util.List;
 
 public class Cache {
-    private ServerSocket serverSocket;
+    private int port;
     private String serverIP;
     private int serverPort;
+    private String protocol;
 
-    public Cache(int port, String serverIP, int serverPort) throws IOException {
-        serverSocket = new ServerSocket(port);
+    public Cache(int port, String serverIP, int serverPort, String protocol) throws IOException {
+        this.port = port;
         this.serverIP = serverIP;
         this.serverPort = serverPort;
+        this.protocol = protocol;
     }
 
-    public void start() {
-        while (true) {
-            try (Socket clientSocket = serverSocket.accept();
-                 DataInputStream in = new DataInputStream(clientSocket.getInputStream());
-                 DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
+    public void start() throws IOException {
+        if (protocol.equalsIgnoreCase("tcp")) {
+            startTCPCache();
+        } else if (protocol.equalsIgnoreCase("snw")) {
+            startSNWCache();
+        } else {
+            System.out.println("Unsupported protocol.");
+        }
+    }
 
-                // Read command from client
-                String command = in.readUTF();
+    private void startTCPCache() throws IOException {
+        ServerSocket serverSocket = new ServerSocket(port);
+        while (true) {
+            try (Socket clientSocket = serverSocket.accept()) {
+                TCP_Transport tcpTransport = new TCP_Transport(clientSocket);
+                String command = tcpTransport.receiveMessage();
                 if (command.startsWith("get")) {
-                    handleGetCommand(command, out);
+                    handleGetCommand(command, tcpTransport);
                 } else {
-                    out.writeUTF("Invalid command");
+                    tcpTransport.sendMessage("Invalid command");
                 }
+                tcpTransport.close();
             } catch (IOException e) {
                 System.out.println("Cache error: " + e.getMessage());
             }
         }
     }
 
-    private void handleGetCommand(String command, DataOutputStream out) throws IOException {
-        String filename = command.split(" ")[1];
+    private void startSNWCache() throws IOException {
+        ServerSocket serverSocket = new ServerSocket(port);
+        while (true) {
+            try (Socket clientSocket = serverSocket.accept()) {
+                TCP_Transport tcpTransport = new TCP_Transport(clientSocket);
+                String command = tcpTransport.receiveMessage();
+                if (command.startsWith("get")) {
+                    handleSNWGetCommand(command, tcpTransport);
+                } else {
+                    tcpTransport.sendMessage("Invalid command");
+                }
+                tcpTransport.close();
+            } catch (IOException e) {
+                System.out.println("Cache error: " + e.getMessage());
+            }
+        }
+    }
+
+    private void handleSNWGetCommand(String command, TCP_Transport tcpTransport) throws IOException {
+        String[] tokens = command.split(" ");
+        String filename = tokens[1];
+
+        // Receive the client's SNW port number
+        int clientSNWPort = Integer.parseInt(tcpTransport.receiveMessage());
+
         File file = new File(filename);
         if (file.exists()) {
-            out.writeUTF("File delivered from cache.");
-            long fileSize = file.length();
-            out.writeLong(fileSize);
-            FileInputStream fis = new FileInputStream(file);
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = fis.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-            }
-            fis.close();
+            tcpTransport.sendMessage("File delivered from cache.");
+
+            // Send file via SNW to client's SNW port
+            int cacheToClientSNWPort = 30002; // Ensure this port is available
+            SNWTransport snwTransport = new SNWTransport(
+                    tcpTransport.getSocket().getInetAddress().getHostAddress(),
+                    clientSNWPort,
+                    cacheToClientSNWPort
+            );
+            snwTransport.sendFile(file);
+            snwTransport.close();
         } else {
-            out.writeUTF("File not found in cache. Fetching from server...");
+            System.out.println("Cache: File not found in cache. Fetching from server...");
+
+            // Fetch the file from the server
             Socket serverSocket = new Socket(serverIP, serverPort);
-            DataOutputStream serverOut = new DataOutputStream(serverSocket.getOutputStream());
-            DataInputStream serverIn = new DataInputStream(serverSocket.getInputStream());
-            serverOut.writeUTF(command);
-            String serverResponse = serverIn.readUTF();
+            TCP_Transport serverTransport = new TCP_Transport(serverSocket);
+
+            // Send the command to the server
+            serverTransport.sendMessage(command);
+
+            // Inform server of cache's SNW port
+            int cacheSNWPort = 30001; // Ensure this port is available
+            serverTransport.sendMessage(String.valueOf(cacheSNWPort));
+
+            String serverResponse = serverTransport.receiveMessage();
             if (serverResponse.equals("Sending file.")) {
-                out.writeUTF("File delivered from server.");
-                long fileSize = serverIn.readLong();
-                out.writeLong(fileSize);
-                FileOutputStream fos = new FileOutputStream(file);
-                byte[] buffer = new byte[4096];
-                long totalRead = 0;
-                int bytesRead;
-                while (totalRead < fileSize && (bytesRead = serverIn.read(buffer, 0, (int)Math.min(buffer.length, fileSize - totalRead))) != -1) {
-                    fos.write(buffer, 0, bytesRead);
-                    out.write(buffer, 0, bytesRead);
-                    totalRead += bytesRead;
-                }
-                fos.close();
+                // Receive the file from the server via SNW
+                SNWTransport snwTransport = new SNWTransport(cacheSNWPort); // Receiver
+                snwTransport.receiveFile(new File(filename));
+                snwTransport.close();
+
+                serverTransport.close();
+                serverSocket.close();
+
+                // Now send the file to the client
+                tcpTransport.sendMessage("File delivered from server.");
+                int cacheToClientSNWPort = 30002; // Ensure this port is available
+                SNWTransport snwToClient = new SNWTransport(
+                        tcpTransport.getSocket().getInetAddress().getHostAddress(),
+                        clientSNWPort,
+                        cacheToClientSNWPort
+                );
+                snwToClient.sendFile(new File(filename));
+                snwToClient.close();
             } else {
-                out.writeUTF("File not found on server.");
+                tcpTransport.sendMessage("File not found on server.");
+                serverTransport.close();
+                serverSocket.close();
             }
-            serverIn.close();
-            serverOut.close();
-            serverSocket.close();
+        }
+    }
+
+    private void handleGetCommand(String command, TCP_Transport tcpTransport) throws IOException {
+        String[] tokens = command.split(" ");
+        String filename = tokens[1];
+        File file = new File(filename);
+        if (file.exists()) {
+            tcpTransport.sendMessage("File delivered from cache.");
+            tcpTransport.sendFile(filename);
+        } else {
+            // Do not send a message to the client here
+            System.out.println("Cache: File not found in cache. Fetching from server...");
+            // Fetch the file from the server
+            Socket serverSocket = new Socket(serverIP, serverPort);
+            TCP_Transport serverTransport = new TCP_Transport(serverSocket);
+            serverTransport.sendMessage(command);
+            String serverResponse = serverTransport.receiveMessage();
+            if (serverResponse.equals("Sending file.")) {
+                // Receive the file from the server
+                serverTransport.receiveFile(filename);
+                // Close the connection to the server
+                serverTransport.close();
+                serverSocket.close();
+                // Now send the file to the client
+                tcpTransport.sendMessage("File delivered from server.");
+                tcpTransport.sendFile(filename);
+            } else {
+                tcpTransport.sendMessage("File not found on server.");
+                serverTransport.close();
+                serverSocket.close();
+            }
         }
     }
 
 
     public static void main(String[] args) {
-        if (args.length < 3) {
-            System.err.println("Usage: java Cache <port> <serverIP> <serverPort>");
+        if (args.length < 4) {
+            System.err.println("Usage: java Cache <port> <serverIP> <serverPort> <protocol>");
             return;
         }
         int port = Integer.parseInt(args[0]);
         String serverIP = args[1];
         int serverPort = Integer.parseInt(args[2]);
+        String protocol = args[3];
         try {
-            Cache cache = new Cache(port, serverIP, serverPort);
+            Cache cache = new Cache(port, serverIP, serverPort, protocol);
             cache.start();
         } catch (IOException e) {
             System.err.println("Could not start cache: " + e.getMessage());
         }
     }
-
 }

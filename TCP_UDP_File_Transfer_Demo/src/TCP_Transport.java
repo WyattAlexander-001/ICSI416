@@ -60,4 +60,9 @@ public class TCP_Transport {
         out.close();
         in.close();
     }
+
+    // Add this method to retrieve the underlying socket
+    public Socket getSocket() {
+        return socket;
+    }
 }

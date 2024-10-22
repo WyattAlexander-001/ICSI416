@@ -19,8 +19,6 @@ public class Client {
         System.out.println("Client Side Starting.");
     }
 
-    // Removed connectToServer() method entirely
-
     public void start() {
         while (true) {
             System.out.print("Enter command: ");
@@ -30,6 +28,7 @@ public class Client {
             }
             try {
                 if (command.equals("quit")) {
+                    System.out.println("Exiting program!");
                     break;
                 } else if (command.startsWith("put")) {
                     handlePutCommand(command);
@@ -47,75 +46,127 @@ public class Client {
     }
 
     private void handlePutCommand(String command) throws IOException {
-        Socket serverSocket = new Socket(serverIP, serverPort);
-        DataOutputStream serverOut = new DataOutputStream(serverSocket.getOutputStream());
-        DataInputStream serverIn = new DataInputStream(serverSocket.getInputStream());
+        System.out.println("Awaiting server response.");
+        if (protocol.equalsIgnoreCase("tcp")) {
+            // Use TCP transport
+            Socket serverSocket = new Socket(serverIP, serverPort);
+            TCP_Transport tcpTransport = new TCP_Transport(serverSocket);
 
-        serverOut.writeUTF(command);
-        String[] tokens = command.split(" ");
-        if (tokens.length < 2) {
-            System.out.println("Usage: put <filename>");
-            serverSocket.close();
-            return;
-        }
-        String filename = tokens[1];
-        File file = new File(filename);
-        if (file.exists()) {
-            long fileSize = file.length();
-            serverOut.writeLong(fileSize);
-            FileInputStream fis = new FileInputStream(file);
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = fis.read(buffer)) != -1) {
-                serverOut.write(buffer, 0, bytesRead);
+            tcpTransport.sendMessage(command);
+            String[] tokens = command.split(" ");
+            if (tokens.length < 2) {
+                System.out.println("Usage: put <filename>");
+                tcpTransport.close();
+                return;
             }
-            fis.close();
-            serverOut.flush();
-            String response = serverIn.readUTF();
-            System.out.println("Server response: " + response);
-        } else {
-            System.out.println("File not found.");
-        }
+            String filename = tokens[1];
+            File file = new File(filename);
+            if (file.exists()) {
+                tcpTransport.sendFile(filename);
+                String response = tcpTransport.receiveMessage();
+                System.out.println("Server response: " + response);
+            } else {
+                System.out.println("File not found.");
+            }
 
-        serverOut.close();
-        serverIn.close();
-        serverSocket.close();
+            tcpTransport.close();
+        } else if (protocol.equalsIgnoreCase("snw")) {
+            // Use SNW transport
+            // Send command via TCP
+            Socket serverSocket = new Socket(serverIP, serverPort);
+            TCP_Transport tcpTransport = new TCP_Transport(serverSocket);
+
+            tcpTransport.sendMessage(command);
+            String[] tokens = command.split(" ");
+            if (tokens.length < 2) {
+                System.out.println("Usage: put <filename>");
+                tcpTransport.close();
+                return;
+            }
+            String filename = tokens[1];
+            File file = new File(filename);
+            if (file.exists()) {
+                // Send file via SNW
+                SNWTransport snwTransport = new SNWTransport(serverIP, serverPort);
+                snwTransport.sendFile(file);
+                snwTransport.close();
+
+                String response = tcpTransport.receiveMessage();
+                System.out.println("Server response: " + response);
+            } else {
+                System.out.println("File not found.");
+            }
+
+            tcpTransport.close();
+        } else {
+            System.out.println("Unsupported protocol.");
+        }
     }
 
     private void handleGetCommand(String command) throws IOException {
-        Socket cacheSocket = new Socket(cacheIP, cachePort);
-        DataOutputStream cacheOut = new DataOutputStream(cacheSocket.getOutputStream());
-        DataInputStream cacheIn = new DataInputStream(cacheSocket.getInputStream());
+        if (protocol.equalsIgnoreCase("tcp")) {
+            // Use TCP transport
+            Socket cacheSocket = new Socket(cacheIP, cachePort);
+            TCP_Transport tcpTransport = new TCP_Transport(cacheSocket);
 
-        cacheOut.writeUTF(command);
-        String[] tokens = command.split(" ");
-        if (tokens.length < 2) {
-            System.out.println("Usage: get <filename>");
-            cacheSocket.close();
-            return;
-        }
-        String filename = tokens[1];
-        String response = cacheIn.readUTF();
-        if (response.equals("File delivered from cache.") || response.equals("File delivered from server.")) {
-            long fileSize = cacheIn.readLong();
-            FileOutputStream fos = new FileOutputStream(filename);
-            byte[] buffer = new byte[4096];
-            long totalRead = 0;
-            int bytesRead;
-            while (totalRead < fileSize && (bytesRead = cacheIn.read(buffer, 0, (int) Math.min(buffer.length, fileSize - totalRead))) != -1) {
-                fos.write(buffer, 0, bytesRead);
-                totalRead += bytesRead;
+            tcpTransport.sendMessage(command);
+            String[] tokens = command.split(" ");
+            if (tokens.length < 2) {
+                System.out.println("Usage: get <filename>");
+                tcpTransport.close();
+                return;
             }
-            fos.close();
-            System.out.println("File received and saved as " + filename);
+            String filename = tokens[1];
+            String response = tcpTransport.receiveMessage();
             System.out.println("Server response: " + response);
-        } else {
-            System.out.println("Cache response: " + response);
-        }
+            if (response.equals("File delivered from cache.") || response.equals("File delivered from server.")) {
+                tcpTransport.receiveFile(filename);
+                System.out.println("File received and saved as " + filename);
+            } else {
+                System.out.println("Cache response: " + response);
+            }
 
-        cacheOut.close();
-        cacheIn.close();
-        cacheSocket.close();
+            tcpTransport.close();
+        } else if (protocol.equalsIgnoreCase("snw")) {
+            // SNW code
+            // Send command via TCP
+            Socket cacheSocket = new Socket(cacheIP, cachePort);
+            TCP_Transport tcpTransport = new TCP_Transport(cacheSocket);
+
+            String[] tokens = command.split(" ");
+            if (tokens.length < 2) {
+                System.out.println("Usage: get <filename>");
+                tcpTransport.close();
+                return;
+            }
+            String filename = tokens[1];
+
+            // Set up SNWTransport receiver before sending the SNW port
+            int snwPort = 30000; // Ensure this port is available
+            SNWTransport snwTransport = new SNWTransport(snwPort); // Receiver
+
+            tcpTransport.sendMessage(command);
+            // Send the SNW port to the cache
+            tcpTransport.sendMessage(String.valueOf(snwPort));
+
+            String response = tcpTransport.receiveMessage();
+            System.out.println("Server response: " + response);
+
+            if (response.equals("File delivered from cache.") || response.equals("File delivered from server.")) {
+                // Receive file via SNW
+                snwTransport.receiveFile(new File(filename));
+                snwTransport.close();
+
+                System.out.println("File received and saved as " + filename);
+            } else {
+                System.out.println("Cache response: " + response);
+                snwTransport.close();
+            }
+
+            tcpTransport.close();
+        } else {
+            System.out.println("Unsupported protocol.");
+        }
     }
 
     public static void main(String[] args) {
