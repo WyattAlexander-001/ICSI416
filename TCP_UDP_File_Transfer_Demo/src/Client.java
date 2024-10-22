@@ -17,7 +17,6 @@ public class Client {
         this.cachePort = cachePort;
         this.protocol = protocol;
         System.out.println("Client Side Starting.");
-        // No need to call connectToServer() or connectToServerAndCache()
     }
 
     // Removed connectToServer() method entirely
