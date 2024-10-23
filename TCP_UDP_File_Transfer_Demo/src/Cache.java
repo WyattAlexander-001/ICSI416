@@ -83,6 +83,10 @@ public class Cache {
         } else {
             System.out.println("Cache: File not found in cache. Fetching from server...");
 
+            // Set up SNWTransport receiver BEFORE sending the SNW port to the server
+            int cacheSNWPort = 30001; // Ensure this port is available
+            SNWTransport snwTransport = new SNWTransport(cacheSNWPort); // Receiver
+
             // Fetch the file from the server
             Socket serverSocket = new Socket(serverIP, serverPort);
             TCP_Transport serverTransport = new TCP_Transport(serverSocket);
@@ -91,18 +95,21 @@ public class Cache {
             serverTransport.sendMessage(command);
 
             // Inform server of cache's SNW port
-            int cacheSNWPort = 30001; // Ensure this port is available
             serverTransport.sendMessage(String.valueOf(cacheSNWPort));
 
             String serverResponse = serverTransport.receiveMessage();
             if (serverResponse.equals("Sending file.")) {
                 // Receive the file from the server via SNW
-                SNWTransport snwTransport = new SNWTransport(cacheSNWPort); // Receiver
                 snwTransport.receiveFile(new File(filename));
                 snwTransport.close();
 
                 serverTransport.close();
                 serverSocket.close();
+
+                // Ensure the file is fully written
+                File receivedFile = new File(filename);
+                long expectedFileSize = receivedFile.length();
+                System.out.println("Cache: Received file size from server: " + expectedFileSize);
 
                 // Now send the file to the client
                 tcpTransport.sendMessage("File delivered from server.");
@@ -112,15 +119,18 @@ public class Cache {
                         clientSNWPort,
                         cacheToClientSNWPort
                 );
-                snwToClient.sendFile(new File(filename));
+                snwToClient.sendFile(receivedFile);
                 snwToClient.close();
             } else {
                 tcpTransport.sendMessage("File not found on server.");
                 serverTransport.close();
                 serverSocket.close();
+                snwTransport.close(); // Close the receiver if no file is sent
             }
         }
     }
+
+
 
     private void handleGetCommand(String command, TCP_Transport tcpTransport) throws IOException {
         String[] tokens = command.split(" ");

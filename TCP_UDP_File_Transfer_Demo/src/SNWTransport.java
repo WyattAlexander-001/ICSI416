@@ -5,6 +5,7 @@ import java.net.SocketTimeoutException;
 import java.io.IOException;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.BufferedOutputStream;
 import java.util.List;
 
 public class SNWTransport {
@@ -101,6 +102,7 @@ public class SNWTransport {
 
     public void receiveFile(File file) throws IOException {
         FileOutputStream fos = new FileOutputStream(file);
+        BufferedOutputStream bos = new BufferedOutputStream(fos);
         long expectedBytes = 0;
         long totalReceived = 0;
 
@@ -119,11 +121,13 @@ public class SNWTransport {
                 expectedBytes = Long.parseLong(lenStr.substring(4));
             } else {
                 System.out.println("Invalid LEN message. Terminating.");
+                bos.close();
                 fos.close();
                 return;
             }
         } catch (SocketTimeoutException e) {
             System.out.println("Did not receive data. Terminating.");
+            bos.close();
             fos.close();
             return;
         }
@@ -137,7 +141,7 @@ public class SNWTransport {
                 try {
                     socket.receive(dataPacket);
                     System.out.println("Received data packet from " + dataPacket.getAddress() + ":" + dataPacket.getPort());
-                    fos.write(dataPacket.getData(), 0, dataPacket.getLength());
+                    bos.write(dataPacket.getData(), 0, dataPacket.getLength());
                     totalReceived += dataPacket.getLength();
 
                     // Send ACK
@@ -147,11 +151,15 @@ public class SNWTransport {
                     socket.send(ackPacket);
                 } catch (SocketTimeoutException e) {
                     System.out.println("Data transmission terminated prematurely.");
+                    bos.close();
                     fos.close();
                     return;
                 }
             }
         }
+        bos.flush();
+        fos.getFD().sync(); // Ensure data is written to disk
+        bos.close();
         fos.close();
 
         // Send FIN
@@ -160,6 +168,7 @@ public class SNWTransport {
         DatagramPacket finPacket = new DatagramPacket(finBytes, finBytes.length, address, port);
         socket.send(finPacket);
     }
+
 
     public void close() {
         socket.close();
