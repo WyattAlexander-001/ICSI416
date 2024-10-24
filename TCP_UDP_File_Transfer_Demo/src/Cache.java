@@ -72,7 +72,7 @@ public class Cache {
             tcpTransport.sendMessage("File delivered from cache.");
 
             // Send file via SNW to client's SNW port
-            int cacheToClientSNWPort = 30002; // Ensure this port is available
+            int cacheToClientSNWPort = 20030; // Ensure this port is available
             SNWTransport snwTransport = new SNWTransport(
                     tcpTransport.getSocket().getInetAddress().getHostAddress(),
                     clientSNWPort,
@@ -84,7 +84,7 @@ public class Cache {
             System.out.println("Cache: File not found in cache. Fetching from server...");
 
             // Set up SNWTransport receiver BEFORE sending the SNW port to the server
-            int cacheSNWPort = 30001; // Ensure this port is available
+            int cacheSNWPort = 20020; // Ensure this port is available
             SNWTransport snwTransport = new SNWTransport(cacheSNWPort); // Receiver
 
             // Fetch the file from the server
@@ -113,7 +113,7 @@ public class Cache {
 
                 // Now send the file to the client
                 tcpTransport.sendMessage("File delivered from server.");
-                int cacheToClientSNWPort = 30002; // Ensure this port is available
+                int cacheToClientSNWPort = 20030; // Ensure this port is available
                 SNWTransport snwToClient = new SNWTransport(
                         tcpTransport.getSocket().getInetAddress().getHostAddress(),
                         clientSNWPort,

@@ -142,7 +142,7 @@ public class Client {
             String filename = tokens[1];
 
             // Set up SNWTransport receiver before sending the SNW port
-            int snwPort = 30000; // Ensure this port is available
+            int snwPort = 20010; // Ensure this port is available
             SNWTransport snwTransport = new SNWTransport(snwPort); // Receiver
 
             tcpTransport.sendMessage(command);

@@ -2,7 +2,6 @@ Here is some test file I keep in SRC
 This project I basically need to run the following in 3 terminals:
 cd to cache, client, and server, one for each terminal:
 in server terminal:
-
 javac *.java
 java Server 10000 tcp
 

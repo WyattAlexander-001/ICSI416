@@ -93,7 +93,7 @@ public class Server {
         if (file.exists()) {
             tcpTransport.sendMessage("Sending file.");
 
-            int serverToCacheSNWPort = 30003; // Ensure this port is available
+            int serverToCacheSNWPort = 20040; // Ensure this port is available
             SNWTransport snwTransport = new SNWTransport(
                     tcpTransport.getSocket().getInetAddress().getHostAddress(),
                     cacheSNWPort,
