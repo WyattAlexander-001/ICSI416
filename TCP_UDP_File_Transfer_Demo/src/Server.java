@@ -68,8 +68,6 @@ public class Server {
             return;
         }
         String filename = tokens[1];
-
-        // Receive file via SNW
         SNWTransport snwTransport = new SNWTransport(port);
         File file = new File(filename);
         snwTransport.receiveFile(file);
@@ -86,14 +84,13 @@ public class Server {
         }
         String filename = tokens[1];
 
-        // Receive cache's SNW port
         int cacheSNWPort = Integer.parseInt(tcpTransport.receiveMessage());
 
         File file = new File(filename);
         if (file.exists()) {
             tcpTransport.sendMessage("Sending file.");
 
-            int serverToCacheSNWPort = 20040; // Ensure this port is available
+            int serverToCacheSNWPort = 20040;
             SNWTransport snwTransport = new SNWTransport(
                     tcpTransport.getSocket().getInetAddress().getHostAddress(),
                     cacheSNWPort,

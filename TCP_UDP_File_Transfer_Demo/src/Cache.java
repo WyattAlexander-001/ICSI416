@@ -64,15 +64,12 @@ public class Cache {
         String[] tokens = command.split(" ");
         String filename = tokens[1];
 
-        // Receive the client's SNW port number
         int clientSNWPort = Integer.parseInt(tcpTransport.receiveMessage());
 
         File file = new File(filename);
         if (file.exists()) {
             tcpTransport.sendMessage("File delivered from cache.");
-
-            // Send file via SNW to client's SNW port
-            int cacheToClientSNWPort = 20030; // Ensure this port is available
+            int cacheToClientSNWPort = 20030;
             SNWTransport snwTransport = new SNWTransport(
                     tcpTransport.getSocket().getInetAddress().getHostAddress(),
                     clientSNWPort,
@@ -82,36 +79,26 @@ public class Cache {
             snwTransport.close();
         } else {
             System.out.println("Cache: File not found in cache. Fetching from server...");
-
-            // Set up SNWTransport receiver BEFORE sending the SNW port to the server
-            int cacheSNWPort = 20020; // Ensure this port is available
-            SNWTransport snwTransport = new SNWTransport(cacheSNWPort); // Receiver
-
-            // Fetch the file from the server
+            int cacheSNWPort = 20020;
+            SNWTransport snwTransport = new SNWTransport(cacheSNWPort);
             Socket serverSocket = new Socket(serverIP, serverPort);
             TCP_Transport serverTransport = new TCP_Transport(serverSocket);
 
-            // Send the command to the server
             serverTransport.sendMessage(command);
-
-            // Inform server of cache's SNW port
             serverTransport.sendMessage(String.valueOf(cacheSNWPort));
 
             String serverResponse = serverTransport.receiveMessage();
             if (serverResponse.equals("Sending file.")) {
-                // Receive the file from the server via SNW
                 snwTransport.receiveFile(new File(filename));
                 snwTransport.close();
 
                 serverTransport.close();
                 serverSocket.close();
 
-                // Ensure the file is fully written
                 File receivedFile = new File(filename);
                 long expectedFileSize = receivedFile.length();
                 System.out.println("Cache: Received file size from server: " + expectedFileSize);
 
-                // Now send the file to the client
                 tcpTransport.sendMessage("File delivered from server.");
                 int cacheToClientSNWPort = 20030; // Ensure this port is available
                 SNWTransport snwToClient = new SNWTransport(
@@ -125,7 +112,7 @@ public class Cache {
                 tcpTransport.sendMessage("File not found on server.");
                 serverTransport.close();
                 serverSocket.close();
-                snwTransport.close(); // Close the receiver if no file is sent
+                snwTransport.close();
             }
         }
     }
@@ -140,20 +127,15 @@ public class Cache {
             tcpTransport.sendMessage("File delivered from cache.");
             tcpTransport.sendFile(filename);
         } else {
-            // Do not send a message to the client here
             System.out.println("Cache: File not found in cache. Fetching from server...");
-            // Fetch the file from the server
             Socket serverSocket = new Socket(serverIP, serverPort);
             TCP_Transport serverTransport = new TCP_Transport(serverSocket);
             serverTransport.sendMessage(command);
             String serverResponse = serverTransport.receiveMessage();
             if (serverResponse.equals("Sending file.")) {
-                // Receive the file from the server
                 serverTransport.receiveFile(filename);
-                // Close the connection to the server
                 serverTransport.close();
                 serverSocket.close();
-                // Now send the file to the client
                 tcpTransport.sendMessage("File delivered from server.");
                 tcpTransport.sendFile(filename);
             } else {
@@ -163,8 +145,6 @@ public class Cache {
             }
         }
     }
-
-
     public static void main(String[] args) {
         if (args.length < 4) {
             System.err.println("Usage: java Cache <port> <serverIP> <serverPort> <protocol>");

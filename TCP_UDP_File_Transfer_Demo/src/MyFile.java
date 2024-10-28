@@ -13,7 +13,7 @@ public class MyFile {
         try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file))) {
             int bytesRead;
             while ((bytesRead = bis.read(buffer)) != -1) {
-                byte[] chunk = Arrays.copyOf(buffer, bytesRead); // Copy only the bytes read
+                byte[] chunk = Arrays.copyOf(buffer, bytesRead);
                 fileChunks.add(chunk);
             }
         }

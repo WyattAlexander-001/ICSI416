@@ -13,7 +13,6 @@ public class SNWTransport {
     private InetAddress address;
     private int port;
 
-    // For sender with specified local port
     public SNWTransport(String ip, int port, int localPort) throws IOException {
         if (localPort > 0) {
             this.socket = new DatagramSocket(localPort);
@@ -22,19 +21,16 @@ public class SNWTransport {
         }
         this.address = InetAddress.getByName(ip);
         this.port = port;
-        socket.setSoTimeout(5000); // Set timeout to 1 second
+        socket.setSoTimeout(5000);
     }
-
-    // For sender
     public SNWTransport(String ip, int port) throws IOException {
-        this(ip, port, 0); // 0 means any available port
+        this(ip, port, 0);
     }
 
 
-    // For receiver
     public SNWTransport(int port) throws IOException {
         this.socket = new DatagramSocket(port);
-        socket.setSoTimeout(5000); // Set timeout to 5 seconds
+        socket.setSoTimeout(5000);
     }
 
     public void sendFile(File file) throws IOException {
@@ -46,8 +42,6 @@ public class SNWTransport {
         socket.send(lenPacket);
 
         if (fileSize == 0) {
-            // Handle zero-length file
-            // Wait for FIN
             byte[] finBuffer = new byte[1024];
             DatagramPacket finPacket = new DatagramPacket(finBuffer, finBuffer.length);
             try {
@@ -67,8 +61,6 @@ public class SNWTransport {
             System.out.println("Sending data packet to " + address + ":" + port);
             DatagramPacket dataPacket = new DatagramPacket(chunk, chunk.length, address, port);
             socket.send(dataPacket);
-
-            // Wait for ACK
             System.out.println("Waiting for ACK...");
             byte[] ackBuffer = new byte[1024];
             DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length);
@@ -106,13 +98,11 @@ public class SNWTransport {
         long expectedBytes = 0;
         long totalReceived = 0;
 
-        // Receive LEN message
         System.out.println("Waiting to receive LEN message on port " + socket.getLocalPort());
         byte[] lenBuffer = new byte[1024];
         DatagramPacket lenPacket = new DatagramPacket(lenBuffer, lenBuffer.length);
         try {
             socket.receive(lenPacket);
-            // Set the sender's address and port
             address = lenPacket.getAddress();
             port = lenPacket.getPort();
             String lenStr = new String(lenPacket.getData(), 0, lenPacket.getLength());
@@ -143,8 +133,6 @@ public class SNWTransport {
                     System.out.println("Received data packet from " + dataPacket.getAddress() + ":" + dataPacket.getPort());
                     bos.write(dataPacket.getData(), 0, dataPacket.getLength());
                     totalReceived += dataPacket.getLength();
-
-                    // Send ACK
                     System.out.println("Sending ACK to " + dataPacket.getAddress() + ":" + dataPacket.getPort());
                     byte[] ackBytes = "ACK".getBytes();
                     DatagramPacket ackPacket = new DatagramPacket(ackBytes, ackBytes.length, dataPacket.getAddress(), dataPacket.getPort());
@@ -158,18 +146,14 @@ public class SNWTransport {
             }
         }
         bos.flush();
-        fos.getFD().sync(); // Ensure data is written to disk
+        fos.getFD().sync();
         bos.close();
         fos.close();
-
-        // Send FIN
         System.out.println("Sending FIN to " + address + ":" + port);
         byte[] finBytes = "FIN".getBytes();
         DatagramPacket finPacket = new DatagramPacket(finBytes, finBytes.length, address, port);
         socket.send(finPacket);
     }
-
-
     public void close() {
         socket.close();
     }

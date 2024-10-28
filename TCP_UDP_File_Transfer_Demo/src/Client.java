@@ -24,7 +24,7 @@ public class Client {
             System.out.print("Enter command: ");
             String command = scanner.nextLine().trim();
             if (command.isEmpty()) {
-                continue; // Skip empty commands
+                continue;
             }
             try {
                 if (command.equals("quit")) {
@@ -42,7 +42,6 @@ public class Client {
                 break;
             }
         }
-        // No need to call close() since we're closing sockets in handlers
     }
 
     private void handlePutCommand(String command) throws IOException {
@@ -71,8 +70,6 @@ public class Client {
 
             tcpTransport.close();
         } else if (protocol.equalsIgnoreCase("snw")) {
-            // Use SNW transport
-            // Send command via TCP
             Socket serverSocket = new Socket(serverIP, serverPort);
             TCP_Transport tcpTransport = new TCP_Transport(serverSocket);
 
@@ -86,7 +83,6 @@ public class Client {
             String filename = tokens[1];
             File file = new File(filename);
             if (file.exists()) {
-                // Send file via SNW
                 SNWTransport snwTransport = new SNWTransport(serverIP, serverPort);
                 snwTransport.sendFile(file);
                 snwTransport.close();
@@ -105,7 +101,6 @@ public class Client {
 
     private void handleGetCommand(String command) throws IOException {
         if (protocol.equalsIgnoreCase("tcp")) {
-            // Use TCP transport
             Socket cacheSocket = new Socket(cacheIP, cachePort);
             TCP_Transport tcpTransport = new TCP_Transport(cacheSocket);
 
@@ -128,8 +123,6 @@ public class Client {
 
             tcpTransport.close();
         } else if (protocol.equalsIgnoreCase("snw")) {
-            // SNW code
-            // Send command via TCP
             Socket cacheSocket = new Socket(cacheIP, cachePort);
             TCP_Transport tcpTransport = new TCP_Transport(cacheSocket);
 
@@ -141,19 +134,16 @@ public class Client {
             }
             String filename = tokens[1];
 
-            // Set up SNWTransport receiver before sending the SNW port
-            int snwPort = 20010; // Ensure this port is available
-            SNWTransport snwTransport = new SNWTransport(snwPort); // Receiver
+            int snwPort = 20010;
+            SNWTransport snwTransport = new SNWTransport(snwPort);
 
             tcpTransport.sendMessage(command);
-            // Send the SNW port to the cache
             tcpTransport.sendMessage(String.valueOf(snwPort));
 
             String response = tcpTransport.receiveMessage();
             System.out.println("Server response: " + response);
 
             if (response.equals("File delivered from cache.") || response.equals("File delivered from server.")) {
-                // Receive file via SNW
                 snwTransport.receiveFile(new File(filename));
                 snwTransport.close();
 
